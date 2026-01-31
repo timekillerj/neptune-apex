@@ -1,7 +1,8 @@
 import logging
 import re
 
-from homeassistant.helpers.entity import Entity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
+
 
 from .apex_entity import ApexEntity
 from .const import DOMAIN, SENSORS, MEASUREMENTS, STATUS, DID, TYPE, CONFIG, INPUTS, OUTPUTS, OCONF, ICONF, STATE, ATTRIBUTES, DOS, DQD, IOTA, VARIABLE, VIRTUAL, CTYPE, ADVANCED, PROG
@@ -20,13 +21,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         if value[TYPE] in [DOS, DQD, VARIABLE, VIRTUAL, IOTA]:
             sensor = ApexSensor(entry, value, config_entry.options)
             async_add_entities([sensor], True)
+    # Add dosing "total_increasing" sensors for DOS/DQD pumps (derived from /rest/dlog)
+    for value in entry.data[STATUS][OUTPUTS]:
+        if value[TYPE] in [DOS, DQD]:
+            async_add_entities([ApexDosingTotalSensor(entry, value, config_entry.options)], True)
 
 
-class ApexSensor(ApexEntity, Entity):
+
+class ApexSensor(ApexEntity, SensorEntity):
     def __init__(self, coordinator, sensor, options):
         super().__init__("sensor", sensor, coordinator)
         self.sensor = sensor
-        self.options = options
+        self._entry_options = options
         self._attr = {}
 
     # Need to tidy this section up and avoid using so many for loops
@@ -107,3 +113,45 @@ class ApexSensor(ApexEntity, Entity):
         else:
             logger.debug("missing icon: " + self.sensor[TYPE])
             return None
+
+class ApexDosingTotalSensor(ApexEntity, SensorEntity):
+    """
+    Cumulative mL dosed, derived from /rest/dlog and persisted by the coordinator.
+    This is the Energy-style representation: state_class = total_increasing.
+    """
+
+    def __init__(self, coordinator, sensor, options):
+        # Use a distinct kind so unique_id/entity_id don't collide with the existing ApexSensor
+        super().__init__("sensor", sensor, coordinator, unique_id_suffix="total_dosed")
+        self.sensor = sensor
+        self._entry_options = options
+        # self._attr_name = f"{getattr(self, 'name', '')} Total Dosed".strip()
+
+    @property
+    def native_value(self):
+        totals = (self.coordinator.data or {}).get("dlog_totals") or {}
+        val = totals.get(self.sensor[DID])
+        if val is None:
+            return 0.0
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @property
+    def native_unit_of_measurement(self):
+        return "mL"
+
+    @property
+    def state_class(self):
+        return SensorStateClass.TOTAL_INCREASING
+
+    @property
+    def extra_state_attributes(self):
+        # Useful for debugging
+        last_seen = ((self.coordinator.apex is not None) and True)  # placeholder if you want
+        return {
+            "did": self.sensor[DID],
+            "pump_type": self.sensor.get(TYPE),
+        }
+

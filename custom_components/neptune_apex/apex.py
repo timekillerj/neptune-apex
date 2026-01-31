@@ -55,7 +55,7 @@ class Apex(object):
         logger.debug(f"SID: {self.sid}")
         return self.sid is not None
 
-    def try3(self, url_path: str, postdata: Optional[dict] = None) -> Optional[dict]:
+    def try3(self, url_path: str, postdata: Optional[dict] = None, params: Optional[dict] = None) -> Optional[dict]:
         tries = 0
         result = None
         url = f"http://{self.deviceip}/{REST}/{url_path}"
@@ -66,7 +66,9 @@ class Apex(object):
                 # noinspection PyTypeChecker
                 headers = {**DEFAULT_HEADERS, "Cookie": "connect.sid=" + self.sid}
                 if postdata is None:
-                    r = requests.get(f"{url}?_={str(round(time.time()))}", headers=headers)
+                    q = dict(params or {})
+                    q["_"] = str(round(time.time()))
+                    r = requests.get(url, headers=headers, params=q)
                 else:
                     # logger.debug(postdata)
                     r = requests.put(url, headers=headers, json=postdata)
@@ -91,6 +93,16 @@ class Apex(object):
         if config_data is not None:
             self.config_data = config_data
         return self.config_data
+
+    def dlog(self, days: int, sdate: str) -> Optional[dict]:
+        """
+        Fetch dosing log records.
+
+        days: number of days to return (Apex parameter)
+        sdate: start date formatted YYMMDD (e.g. "260101")
+        """
+        return self.try3("dlog", params={"days": int(days), "sdate": str(sdate)})
+
 
     def set_output_state(self, device_id: str, state: str) -> Optional[dict]:
         # I gave this TYPE: OUTLET a bit of side-eye, but it seems to be fine even if the

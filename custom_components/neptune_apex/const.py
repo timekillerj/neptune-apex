@@ -33,6 +33,11 @@ ADVANCED = "Advanced"
 HEATER = "Heater"
 PROG = "prog"
 
+# dlog / dosing totals
+DLOG_TOTALS = "dlog_totals"
+DLOG_STORE_VERSION = 1
+DLOG_STORE_KEY_PREFIX = "dlog"  # used to build Store key
+
 SWITCHES = {
     OUTLET: {"icon": "mdi:power-socket-au"},
     "alert": {"icon": "mdi:alert"},

@@ -8,16 +8,25 @@ logger = logging.getLogger(__name__)
 
 
 class ApexEntity(CoordinatorEntity):
-    def __init__(self, entity_type: str, entity: dict, coordinator: ApexDataUpdateCoordinator):
+    def __init__(self, entity_type: str, entity: dict, coordinator: ApexDataUpdateCoordinator, unique_id_suffix: str | None = None,):
         super().__init__(coordinator)
 
-        # we do not pass a name up the tree
-        self._device_id = self._attr_unique_id = f"{coordinator.hostname}_{entity[NAME]}".lower().replace("-", "_")
-        self._attr_name = f"{coordinator.hostname.capitalize()} {entity[NAME]}"
-        logger.debug(f"{entity_type}.{self._device_id} = (NAME: {entity[NAME]}, DID: {entity[DID]}, TYPE: {entity[TYPE]})")
+        base_id = f"{coordinator.hostname}_{entity[NAME]}".lower().replace("-", "_")
+        if unique_id_suffix:
+            base_id = f"{base_id}_{unique_id_suffix}"
+        self._device_id = self._attr_unique_id = base_id
 
-        # just a HASS requirement
+        base_name = f"{coordinator.hostname.capitalize()} {entity[NAME]}"
+        if unique_id_suffix:
+            base_name = f"{base_name} {unique_id_suffix.replace('_', ' ').title()}"
+        self._attr_name = base_name
+
+        logger.debug(
+            f"{entity_type}.{self._device_id} = (NAME: {entity[NAME]}, DID: {entity[DID]}, TYPE: {entity[TYPE]})"
+        )
+
         self.coordinator_context = object()
+
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
